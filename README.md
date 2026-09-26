@@ -5,7 +5,7 @@
 ReleasePilot uses IBM Bob 2.0 to orchestrate a parallel multi-agent analysis of a target codebase, producing an evidence-based release readiness report.
 
 ```
-READY / WARNING / BLOCKED
+READY / READY_WITH_WARNINGS / WARNING / BLOCKED
 ```
 
 ---
@@ -15,10 +15,10 @@ READY / WARNING / BLOCKED
 ```
 Target Project
     ↓
-ReleasePilot API (Express)
+ReleasePilot API (Express)          ← creates analysis session
     ↓
-IBM Bob Release Orchestrator  ←── agents/AGENTS.md
-    ↓
+IBM Bob Release Orchestrator        ← agents/AGENTS.md
+    ↓ (parallel)
 ┌────────────────┬────────────────┬────────────────────┐
 │ Code Risk      │ Test Analysis  │ Docs/Config        │
 │ Subagent       │ Subagent       │ Subagent           │
@@ -28,9 +28,96 @@ IBM Bob Release Orchestrator  ←── agents/AGENTS.md
                     ↓
           Evidence-Based Findings
                     ↓
-          Release Readiness Report
+    POST /api/analysis/:id/results
                     ↓
-       READY / WARNING / BLOCKED
+       READY / READY_WITH_WARNINGS / WARNING / BLOCKED
+```
+
+---
+
+## How the ReleasePilot + IBM Bob workflow works
+
+1. **ReleasePilot creates the analysis session.**  
+   When the user clicks _Start Analysis_, the frontend POSTs to `/api/analysis` and a session JSON file is created with `status: "pending"`.  
+   The UI immediately navigates to the report view and begins polling every 3 seconds.
+
+2. **The user copies a Bob prompt and starts a Bob Agent session.**  
+   The UI generates a ready-to-paste prompt containing the session ID, project path, and API base URL.
+
+3. **Bob marks the session as `running`.**  
+   The first thing Bob does is `PATCH /api/analysis/:id/status` with `{"status":"running"}`.  
+   This updates the UI from "Pending" to "Running…".
+
+4. **Bob delegates focused work to three subagents in parallel.**
+   - **Code Risk** (`agents/subagents/code-risk/AGENTS.md`) — inspects source files for security vulnerabilities, reliability issues, and technical debt.
+   - **Test Analysis** (`agents/subagents/test-analysis/AGENTS.md`) — runs existing tests where possible, identifies coverage gaps and unhealthy tests.
+   - **Docs & Config** (`agents/subagents/docs-config/AGENTS.md`) — checks README, environment variables, CI/CD, and deployment configuration.
+
+5. **A Critic reviews the findings.**  
+   The orchestrator reviews every finding: drops those without concrete file+evidence, deduplicates cross-subagent findings, and adjusts severity if warranted.
+
+6. **Final evidence-backed findings are submitted to ReleasePilot.**  
+   Bob POSTs the reviewed findings array to `POST /api/analysis/:id/results`.
+
+7. **ReleasePilot derives the final release status and displays the report.**  
+   The server computes the status, saves the complete report JSON, and the polling UI renders the full findings list.
+
+### Release status logic
+
+| Findings contain | Status |
+|-----------------|--------|
+| Any `critical` | `BLOCKED` |
+| Any `high` (no critical) | `WARNING` |
+| Only `medium` (no higher) | `READY_WITH_WARNINGS` |
+| Only `low` or none | `READY` |
+
+---
+
+## API Contract — what Bob uses to submit results
+
+### Step 1 — Mark session as running
+
+```http
+PATCH http://localhost:3001/api/analysis/{id}/status
+Content-Type: application/json
+
+{"status": "running"}
+```
+
+### Step 2 — Submit findings
+
+```http
+POST http://localhost:3001/api/analysis/{id}/results
+Content-Type: application/json
+
+{
+  "findings": [
+    {
+      "agent": "code-risk",
+      "severity": "critical",
+      "category": "security",
+      "description": "One sentence describing the problem.",
+      "affectedFiles": ["relative/path/to/file.js"],
+      "evidence": "Exact quoted text or file:line reference.",
+      "impact": "What breaks if this is not fixed.",
+      "recommendation": "Specific actionable fix."
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{ "id": "...", "status": "BLOCKED" }
+```
+
+### Mark as failed (if Bob cannot complete)
+
+```http
+PATCH http://localhost:3001/api/analysis/{id}/status
+Content-Type: application/json
+
+{"status": "failed"}
 ```
 
 ---
@@ -39,26 +126,27 @@ IBM Bob Release Orchestrator  ←── agents/AGENTS.md
 
 ```
 releasepilot/
+├── AGENTS.md                       # Developer/agent guidance for this repo
 ├── agents/                         # Bob orchestration instructions
-│   ├── AGENTS.md                   # Orchestrator instructions
+│   ├── AGENTS.md                   # Orchestrator entry point (used by Bob)
 │   └── subagents/
-│       ├── code-risk/AGENTS.md     # Code Risk subagent
-│       ├── test-analysis/AGENTS.md # Test Analysis subagent
-│       └── docs-config/AGENTS.md   # Docs & Config subagent
-├── backend/                        # Node.js + Express API
+│       ├── code-risk/AGENTS.md
+│       ├── test-analysis/AGENTS.md
+│       └── docs-config/AGENTS.md
+├── backend/                        # Node.js + Express API (port 3001)
 │   ├── src/
 │   │   ├── index.js
-│   │   ├── controllers/
-│   │   ├── routes/
-│   │   └── store/                  # JSON file persistence
+│   │   ├── controllers/            # analysisController, reportController
+│   │   ├── routes/                 # analysis.js, reports.js
+│   │   └── store/reportStore.js    # JSON file persistence
 │   ├── tests/
-│   └── data/reports/               # Auto-created; stores report JSON
-├── frontend/                       # React dashboard
+│   └── data/reports/               # Auto-created; stores <uuid>.json
+├── frontend/                       # React dashboard (port 3000)
 │   └── src/
 │       ├── App.js
 │       ├── api/client.js
 │       └── components/
-└── package.json                    # Root — runs both services
+└── package.json                    # Root — runs both services concurrently
 ```
 
 ---
@@ -77,52 +165,66 @@ npm run install:all
 npm start
 ```
 
-- **Backend API**: http://localhost:3001
+- **Backend API**: http://localhost:3001  
 - **Frontend**: http://localhost:3000
 
 ---
 
 ## Running an Analysis
 
-### Via the UI
+### Via the UI (recommended)
 
 1. Open http://localhost:3000
 2. Click **New Analysis**
-3. Enter the absolute path to the target project
-4. Click **Start Analysis** — the session ID is created immediately
+3. Enter the absolute path to the target project (e.g. `/home/user/DocuRAG`)
+4. Click **Start Analysis**
+5. Copy the generated Bob prompt
+6. Open IBM Bob in Agent mode and paste the prompt
+7. Bob will analyze the project and submit findings — the UI updates automatically
 
-### Supplying Bob with analysis context
+### Running Bob against DocuRAG
 
-When invoking Bob, provide the session details from the API response and point Bob at `agents/AGENTS.md`:
+After clicking Start Analysis in the UI, a prompt like this is generated (copy it from the UI):
 
-```bash
-# Example (Bob CLI — adapt to your setup)
-bob agent --instructions agents/AGENTS.md \
-  --var analysisId=<id> \
-  --var projectPath=/path/to/target \
-  --var projectName=my-app \
-  --var branch=main \
-  --var apiBase=http://localhost:3001/api
+```
+You are the Release Orchestrator for ReleasePilot. Follow the instructions in agents/AGENTS.md exactly.
+
+Session details:
+- analysisId: <uuid from UI>
+- projectPath: /absolute/path/to/DocuRAG
+- projectName: DocuRAG
+- branch: main
+- apiBase: http://localhost:3001/api
+
+Step 1: PATCH http://localhost:3001/api/analysis/<uuid>/status with body {"status":"running"}
+Step 2: Spawn three subagents IN PARALLEL...
+Step 3: Critic pass...
+Step 4: POST findings to http://localhost:3001/api/analysis/<uuid>/results
 ```
 
-Bob will spawn three subagents in parallel, run a critic pass, and POST findings back to the API.  
-The API will compute `READY / WARNING / BLOCKED` and store the full report.
+Paste this into a Bob Agent session with the ReleasePilot workspace open.
 
-### Via API directly
+### Via the API directly
 
 ```bash
-# Start analysis
+# 1. Create session
 curl -X POST http://localhost:3001/api/analysis \
   -H "Content-Type: application/json" \
-  -d '{"projectPath":"/path/to/app","projectName":"my-app","branch":"main"}'
+  -d '{"projectPath":"/path/to/DocuRAG","projectName":"DocuRAG","branch":"main"}'
+# → {"id":"<uuid>","status":"pending","createdAt":"..."}
 
-# Submit findings (from Bob or manually)
-curl -X POST http://localhost:3001/api/analysis/<id>/results \
+# 2. Mark running
+curl -X PATCH http://localhost:3001/api/analysis/<uuid>/status \
+  -H "Content-Type: application/json" \
+  -d '{"status":"running"}'
+
+# 3. Submit findings
+curl -X POST http://localhost:3001/api/analysis/<uuid>/results \
   -H "Content-Type: application/json" \
   -d '{"findings":[{"agent":"code-risk","severity":"high",...}]}'
 
-# Get report
-curl http://localhost:3001/api/reports/<id>
+# 4. Get report
+curl http://localhost:3001/api/reports/<uuid>
 ```
 
 ---
@@ -130,26 +232,26 @@ curl http://localhost:3001/api/reports/<id>
 ## Testing
 
 ```bash
-# Backend
+# Backend (19 tests)
 cd backend && npm test
 
-# Run a single backend test
+# Single backend test
 cd backend && npm run test:single -- tests/routes/analysis.test.js
 
-# Frontend
-cd frontend && npm test
+# Frontend (19 tests)
+cd frontend && CI=true npm test -- --watchAll=false
 
-# Run a single frontend test
-cd frontend && npm run test:single -- StatusBadge
+# Single frontend test
+cd frontend && CI=true npm test -- --watchAll=false --testPathPattern StatusBadge
 ```
 
 ---
 
 ## Adding a New Analysis Subagent
 
-1. Create `agents/subagents/<agent-name>/AGENTS.md` with instructions (follow the existing subagent pattern).
+1. Create `agents/subagents/<name>/AGENTS.md` following the existing subagent pattern.
 2. Add a row to the parallel spawn table in `agents/AGENTS.md`.
-3. The backend accepts any `agent` name string in the findings schema — no backend changes needed.
+3. No backend or frontend changes are needed — the API accepts any `agent` name string.
 
 ---
 
@@ -160,12 +262,13 @@ Stored in `backend/data/reports/<id>.json`:
 ```json
 {
   "id": "uuid",
-  "projectName": "my-app",
-  "projectPath": "/path/to/app",
+  "projectName": "DocuRAG",
+  "projectPath": "/absolute/path",
   "branch": "main",
-  "status": "READY | WARNING | BLOCKED | pending",
+  "status": "READY | READY_WITH_WARNINGS | WARNING | BLOCKED | pending | running | failed",
   "createdAt": "ISO timestamp",
   "updatedAt": "ISO timestamp",
+  "completedAt": "ISO timestamp or null",
   "findings": [
     {
       "agent": "code-risk | test-analysis | docs-config",
@@ -180,11 +283,3 @@ Stored in `backend/data/reports/<id>.json`:
   ]
 }
 ```
-
-### Release Status Logic
-
-| Findings contain | Status |
-|-----------------|--------|
-| Any `critical` | `BLOCKED` |
-| Any `high` (no critical) | `WARNING` |
-| Only `medium` / `low` / none | `READY` |

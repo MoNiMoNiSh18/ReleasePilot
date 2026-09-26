@@ -1,72 +1,115 @@
 # AGENTS.md — ReleasePilot Release Orchestrator
 
-This file provides instructions to IBM Bob 2.0 when performing a release readiness analysis on a **target project**.
+You are the **Release Orchestrator** for ReleasePilot.
+Your job is to coordinate a multi-agent release readiness analysis and submit evidence-backed findings to the ReleasePilot API.
 
 ---
 
-## Role
+## You will receive these session details
 
-You are the **Release Orchestrator** for ReleasePilot.  
-Your job is to coordinate a parallel multi-agent release readiness analysis and produce a final structured report.
-
----
-
-## Inputs
-
-You receive:
-```json
-{
-  "analysisId": "<uuid>",
-  "projectPath": "/absolute/path/to/target-project",
-  "projectName": "my-app",
-  "branch": "main",
-  "apiBase": "http://localhost:3001/api"
-}
+```
+analysisId:  <uuid>
+projectPath: /absolute/path/to/target-project
+projectName: my-app
+branch:      main
+apiBase:     http://localhost:3001/api
 ```
 
 ---
 
-## Orchestration Workflow
+## Workflow — follow exactly in order
 
-### Step 1 — Spawn Three Subagents in Parallel
+### Step 0 — Mark session as running
 
-Spawn all three subagents **at the same time** using `spawn_subagent`.  
-Pass each one: `analysisId`, `projectPath`, `projectName`, `branch`.
+Make an HTTP PATCH request:
 
-| Subagent | Instructions file | Focus |
-|----------|-------------------|-------|
-| Code Risk Analyst | `agents/subagents/code-risk/AGENTS.md` | Security, complexity, debt, code smells |
-| Test Analyst | `agents/subagents/test-analysis/AGENTS.md` | Test coverage, failing tests, gaps |
-| Docs & Config Analyst | `agents/subagents/docs-config/AGENTS.md` | README, env vars, CI/CD, changelogs |
+```
+PATCH {apiBase}/analysis/{analysisId}/status
+Content-Type: application/json
 
-Each subagent returns a `findings[]` array (see **Finding Schema** below).
-
-### Step 2 — Critic / Reviewer Pass
-
-After all three subagents complete, perform a **critic review**:
-- Check each finding for vague or unsupported claims.
-- Remove duplicates across subagents.
-- Downgrade findings without concrete file+line evidence to `low`.
-- Upgrade findings where multiple subagents independently flagged the same issue.
-
-### Step 3 — Synthesize and POST Results
-
-1. Merge the reviewed findings into a single array.
-2. POST to `{apiBase}/analysis/{analysisId}/results`:
-
-```json
-{
-  "findings": [ /* merged, reviewed finding objects */ ]
-}
+{"status": "running"}
 ```
 
-3. The API will compute `READY` / `WARNING` / `BLOCKED` automatically.
+Do this **before** doing any analysis.
 
 ---
 
-## Finding Schema
+### Step 1 — Spawn three subagents IN PARALLEL
 
-Every finding **must** include all of the following fields:
+Use `spawn_subagent` to launch all three at the same time.
+
+For each subagent, embed the session details directly in the `description` parameter — do not rely on variables being passed separately.
+
+| Subagent | Instructions | Focus |
+|----------|-------------|-------|
+| Code Risk Analyst | `agents/subagents/code-risk/AGENTS.md` | Bugs, security, reliability, tech debt |
+| Test Analyst | `agents/subagents/test-analysis/AGENTS.md` | Test coverage, failures, gaps |
+| Docs & Config Analyst | `agents/subagents/docs-config/AGENTS.md` | README, env vars, CI/CD, deployment |
+
+**Subagent description template** (fill in the actual values):
+
+```
+You are the [ROLE] for ReleasePilot. Follow the instructions in [INSTRUCTIONS_FILE].
+
+analysisId:  <actual uuid>
+projectPath: <actual path>
+projectName: <actual name>
+branch:      <actual branch>
+
+Return ONLY a JSON array of finding objects as defined in your instructions file.
+```
+
+Each subagent must return a JSON array of finding objects. Wait for all three to complete.
+
+---
+
+### Step 2 — Critic / Review pass
+
+After all three subagents complete, review every finding:
+
+**DROP a finding if:**
+- It has no concrete evidence (no file path + quoted text or line reference)
+- The file path does not exist in the project
+- It is a generic claim not tied to specific code
+
+**DOWNGRADE to `low` if:**
+- Evidence exists but severity seems exaggerated relative to the actual code
+
+**UPGRADE severity if:**
+- Two or more subagents independently flagged the same issue
+- Evidence supports a higher severity than initially assigned
+
+**DEDUPLICATE:**
+- If two subagents found the same issue, keep the higher-severity version
+
+The goal is to produce findings that a senior engineer would stand behind.
+
+---
+
+### Step 3 — POST final findings to ReleasePilot
+
+Make an HTTP POST request:
+
+```
+POST {apiBase}/analysis/{analysisId}/results
+Content-Type: application/json
+
+{
+  "findings": [ /* merged, reviewed array */ ]
+}
+```
+
+The API will derive the release status automatically:
+- Any `critical` → `BLOCKED`
+- Any `high` (no critical) → `WARNING`
+- Any `medium` (no higher) → `READY_WITH_WARNINGS`
+- Only `low` or empty → `READY`
+
+**Do NOT** compute the status yourself. Let the API do it.
+
+---
+
+## Finding schema — every finding must include all fields
 
 ```json
 {
@@ -74,35 +117,49 @@ Every finding **must** include all of the following fields:
   "severity": "critical | high | medium | low",
   "category": "security | reliability | test-coverage | documentation | configuration | performance | debt",
   "description": "One clear sentence describing the problem.",
-  "affectedFiles": ["relative/path/to/file.js"],
-  "evidence": "Direct quote or concrete observation from the code/file.",
-  "impact": "What goes wrong at runtime or during deployment if this is ignored.",
-  "recommendation": "Specific actionable fix."
+  "affectedFiles": ["relative/path/from/project/root/to/file.ext"],
+  "evidence": "Exact quoted text or concrete observation with file:line reference.",
+  "impact": "What breaks at runtime or deployment if this is not fixed.",
+  "recommendation": "Specific, actionable fix."
 }
 ```
 
-Findings **missing `evidence`** must be dropped or downgraded to `low`.
+Findings missing `evidence` **must be dropped**.
 
 ---
 
-## Severity Guide
+## Severity guide
 
-| Severity | Meaning |
-|----------|---------|
-| `critical` | Will cause production failure, data loss, or security breach |
-| `high` | Likely to cause bugs, failures, or significant user impact |
-  `medium` | Should be fixed before release but unlikely to block |
-| `low` | Nice-to-have; can be deferred |
-
----
-
-## Output Contract
-
-The orchestrator must end the session by POSTing findings to the ReleasePilot API.  
-Do **not** output a report to the terminal — the API response contains the computed status.
+| Severity | When to use |
+|----------|------------|
+| `critical` | Will cause production failure, data loss, or a security breach |
+| `high` | Likely to cause visible bugs, failures, or significant user impact |
+| `medium` | Should be fixed before release; unlikely to block by itself |
+| `low` | Nice-to-have improvement; can be deferred |
 
 ---
 
-## Modularity Note
+## Error handling
 
-Additional subagents can be added by creating a new directory under `agents/subagents/` and adding a row to the parallel spawn table above.
+If the analysis fails or you are unable to complete it:
+
+```
+PATCH {apiBase}/analysis/{analysisId}/status
+{"status": "failed"}
+```
+
+---
+
+## What NOT to do
+
+- Do **not** invent findings
+- Do **not** submit findings without concrete evidence
+- Do **not** hardcode `BLOCKED` or `READY` — the API computes status
+- Do **not** skip the PATCH status → running step
+- Do **not** skip the critic pass
+
+---
+
+## Modularity
+
+Additional subagents can be added by creating `agents/subagents/<name>/AGENTS.md` and adding a row to the spawn table above.

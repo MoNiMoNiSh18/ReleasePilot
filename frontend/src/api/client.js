@@ -55,3 +55,23 @@ export async function getReport(id) {
   }
   return res.json();
 }
+
+/**
+ * Update the status of an analysis session (running / failed).
+ * Used internally and by the Bob orchestration layer.
+ * @param {string} id
+ * @param {'running'|'failed'} status
+ * @returns {Promise<{ id: string, status: string }>}
+ */
+export async function updateAnalysisStatus(id, status) {
+  const res = await fetch(`${API_BASE}/analysis/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Request failed: ${res.status}`);
+  }
+  return res.json();
+}

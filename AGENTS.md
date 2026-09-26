@@ -27,32 +27,61 @@ cd backend && npm test
 # Single backend test file
 cd backend && npm run test:single -- tests/routes/analysis.test.js
 
-# Frontend tests
-cd frontend && npm test
+# Frontend tests (non-interactive)
+cd frontend && CI=true npm test -- --watchAll=false
 
-# Single frontend test pattern
-cd frontend && npm run test:single -- StatusBadge
+# Single frontend test
+cd frontend && CI=true npm test -- --watchAll=false --testPathPattern StatusBadge
 ```
+
+## API Endpoints (complete list)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/analysis` | Create session — returns `{ id, status: "pending" }` |
+| `GET` | `/api/analysis` | List sessions (summary) |
+| `GET` | `/api/analysis/:id` | Get full session |
+| `PATCH` | `/api/analysis/:id/status` | Set status to `running` or `failed` |
+| `POST` | `/api/analysis/:id/results` | Submit findings — computes release status |
+| `GET` | `/api/reports` | List all reports |
+| `GET` | `/api/reports/:id` | Get single full report |
+| `GET` | `/api/health` | Health check |
 
 ## Critical Architecture Facts
 
-- **Frontend proxy**: `frontend/package.json` has `"proxy": "http://localhost:3001"` — all `/api/*` calls from React go to the backend automatically in dev. Do not hardcode `localhost:3001` in frontend code.
-- **JSON storage**: Reports are written to `backend/data/reports/<uuid>.json` by `backend/src/store/reportStore.js`. There is no database. The directory is auto-created on first write.
-- **Release status** is derived server-side in `deriveReleaseStatus()` in `analysisController.js` — `critical` → BLOCKED, `high` → WARNING, else READY. The frontend never computes status.
-- **Bob orchestration entry point** is `agents/AGENTS.md`, not the repo root AGENTS.md. The repo root AGENTS.md (this file) is for working on ReleasePilot itself.
-- **Subagent instructions** live in `agents/subagents/<name>/AGENTS.md`. Adding a subagent requires only a new directory + entry in the parallel spawn table in `agents/AGENTS.md`.
+- **Frontend proxy**: `frontend/package.json` has `"proxy": "http://localhost:3001"` — all `/api/*` calls from React go to the backend. Do not hardcode `localhost:3001` in frontend code.
+- **JSON storage**: Reports are written to `backend/data/reports/<uuid>.json` by `backend/src/store/reportStore.js`. Directory is auto-created on first write.
+- **Release status** is derived server-side in `deriveReleaseStatus()` in `analysisController.js`:
+  - `critical` → `BLOCKED`
+  - `high` → `WARNING`
+  - `medium` (no higher) → `READY_WITH_WARNINGS`
+  - `low` / empty → `READY`
+- **Bob orchestration entry point** is `agents/AGENTS.md` — not the repo root AGENTS.md (this file).
+- **Bob workflow**: Bob must PATCH status to `running` before analysis, then POST findings when done. The UI polls every 3 seconds until status is terminal.
+- **Frontend polling**: `ReportDetail` polls `GET /api/reports/:id` every 3 s while `status` is `pending` or `running`. Polling stops when status becomes terminal.
 
 ## Finding Schema (contract between Bob and the API)
 
-Every finding POSTed to `/api/analysis/:id/results` **must** include all eight fields: `agent`, `severity`, `category`, `description`, `affectedFiles`, `evidence`, `impact`, `recommendation`. The API accepts any string for `agent` — no registration needed.
+```json
+{
+  "agent": "code-risk | test-analysis | docs-config",
+  "severity": "critical | high | medium | low",
+  "category": "security | reliability | test-coverage | documentation | configuration | performance | debt",
+  "description": "One sentence describing the problem.",
+  "affectedFiles": ["relative/path/to/file.ext"],
+  "evidence": "Exact quote or concrete file+line reference.",
+  "impact": "What breaks if this is not fixed.",
+  "recommendation": "Specific actionable fix."
+}
+```
 
 ## Code Style
 
 - **Backend**: CommonJS (`require`/`module.exports`). No ES modules in `backend/`.
-- **Frontend**: ES modules (`import`/`export`). Functional React components only. Each component has a co-located `.css` file with the same name.
+- **Frontend**: ES modules (`import`/`export`). Functional React components only. Each component has a co-located `.css` file.
 - **No TypeScript** — plain JavaScript throughout.
 - **Severity values** (canonical, lowercase): `critical`, `high`, `medium`, `low`.
-- **Status values** (canonical, uppercase): `READY`, `WARNING`, `BLOCKED`, `pending`.
+- **Status values** (canonical): `pending`, `running`, `failed`, `READY`, `READY_WITH_WARNINGS`, `WARNING`, `BLOCKED`.
 
 ## Testing Notes
 

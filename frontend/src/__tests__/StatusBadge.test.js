@@ -19,6 +19,26 @@ describe('StatusBadge', () => {
     expect(screen.getByText(/BLOCKED/i)).toBeInTheDocument();
   });
 
+  test('renders READY_WITH_WARNINGS status', () => {
+    render(<StatusBadge status="READY_WITH_WARNINGS" />);
+    expect(screen.getByText(/READY.*warnings/i)).toBeInTheDocument();
+  });
+
+  test('renders running status', () => {
+    render(<StatusBadge status="running" />);
+    expect(screen.getByText(/Running/i)).toBeInTheDocument();
+  });
+
+  test('renders failed status', () => {
+    render(<StatusBadge status="failed" />);
+    expect(screen.getByText(/Failed/i)).toBeInTheDocument();
+  });
+
+  test('renders pending status', () => {
+    render(<StatusBadge status="pending" />);
+    expect(screen.getByText(/Pending/i)).toBeInTheDocument();
+  });
+
   test('applies large class when large prop is set', () => {
     const { container } = render(<StatusBadge status="READY" large />);
     expect(container.firstChild).toHaveClass('status-large');

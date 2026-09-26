@@ -3,7 +3,9 @@ const { readReport, writeReport, listReports } = require('../store/reportStore')
 
 /**
  * Create a new analysis session.
- * The Bob orchestrator is expected to POST findings back via /api/analysis/:id/results.
+ * The Bob orchestrator is expected to:
+ *   1. PATCH /api/analysis/:id/status  { "status": "running" }   — when it starts
+ *   2. POST  /api/analysis/:id/results { "findings": [...] }      — when it finishes
  */
 function startAnalysis(req, res) {
   const { projectPath, projectName, branch } = req.body;
@@ -13,20 +15,50 @@ function startAnalysis(req, res) {
   }
 
   const id = uuidv4();
+  const now = new Date().toISOString();
   const session = {
     id,
     projectPath,
     projectName: projectName || projectPath.split('/').pop(),
     branch: branch || 'main',
     status: 'pending',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
+    completedAt: null,
     findings: null,
-    report: null,
   };
 
   writeReport(id, session);
   res.status(201).json({ id, status: session.status, createdAt: session.createdAt });
+}
+
+/**
+ * Update the status of an analysis session (used by Bob to mark running/failed).
+ * Allowed transitions: pending → running, running → failed
+ * Results endpoint handles running → READY/WARNING/BLOCKED.
+ */
+function updateStatus(req, res) {
+  const { id } = req.params;
+  const session = readReport(id);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Analysis session not found' });
+  }
+
+  const { status } = req.body;
+  const allowed = ['running', 'failed'];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${allowed.join(', ')}` });
+  }
+
+  const updated = {
+    ...session,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+
+  writeReport(id, updated);
+  res.json({ id, status });
 }
 
 /**
@@ -47,12 +79,14 @@ function receiveResults(req, res) {
   }
 
   const status = deriveReleaseStatus(findings);
+  const now = new Date().toISOString();
 
   const updated = {
     ...session,
     status,
     findings,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
+    completedAt: now,
   };
 
   writeReport(id, updated);
@@ -78,30 +112,33 @@ function getAnalysis(req, res) {
  */
 function listAnalyses(req, res) {
   const all = listReports();
-  const summaries = all.map(({ id, projectName, branch, status, createdAt, updatedAt }) => ({
+  const summaries = all.map(({ id, projectName, branch, status, createdAt, updatedAt, completedAt }) => ({
     id,
     projectName,
     branch,
     status,
     createdAt,
     updatedAt,
+    completedAt,
   }));
   res.json(summaries);
 }
 
 /**
- * Derive READY / WARNING / BLOCKED from a findings array.
+ * Derive release status from a findings array.
  *
- * Severity levels: critical → BLOCKED, high → WARNING, medium/low → READY
- * Any single CRITICAL finding blocks the release.
- * Any HIGH finding without CRITICAL produces WARNING.
+ * critical           → BLOCKED
+ * high               → WARNING
+ * medium (no higher) → READY_WITH_WARNINGS
+ * low / none         → READY
  */
 function deriveReleaseStatus(findings) {
   const severities = findings.map((f) => (f.severity || '').toLowerCase());
 
   if (severities.includes('critical')) return 'BLOCKED';
   if (severities.includes('high')) return 'WARNING';
+  if (severities.includes('medium')) return 'READY_WITH_WARNINGS';
   return 'READY';
 }
 
-module.exports = { startAnalysis, receiveResults, getAnalysis, listAnalyses };
+module.exports = { startAnalysis, updateStatus, receiveResults, getAnalysis, listAnalyses };

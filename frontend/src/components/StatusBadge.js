@@ -2,10 +2,13 @@ import React from 'react';
 import './StatusBadge.css';
 
 const STATUS_LABELS = {
-  READY: '✅ READY',
-  WARNING: '⚠️ WARNING',
-  BLOCKED: '🚫 BLOCKED',
-  pending: '⏳ Pending',
+  pending:             '⏳ Pending',
+  running:             '🔄 Running',
+  READY:               '✅ READY',
+  READY_WITH_WARNINGS: '✅ READY (with warnings)',
+  WARNING:             '⚠️ WARNING',
+  BLOCKED:             '🚫 BLOCKED',
+  failed:              '❌ Failed',
 };
 
 function StatusBadge({ status, large }) {
