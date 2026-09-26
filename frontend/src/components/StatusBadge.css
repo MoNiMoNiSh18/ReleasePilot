@@ -1,0 +1,14 @@
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.status-large { padding: 6px 18px; font-size: 1rem; }
+
+.status-READY   { background: #d1fae5; color: #065f46; }
+.status-WARNING { background: #fef3c7; color: #92400e; }
+.status-BLOCKED { background: #fee2e2; color: #991b1b; }
+.status-pending { background: #f3f4f6; color: #6b7280; }

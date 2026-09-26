@@ -1,0 +1,17 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  background: #f0f2f5;
+  color: #1f2328;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.875em;
+  background: #eef0f3;
+  padding: 1px 4px;
+  border-radius: 3px;
+}

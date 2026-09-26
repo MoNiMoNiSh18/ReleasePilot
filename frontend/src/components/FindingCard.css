@@ -1,0 +1,65 @@
+.finding-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-left-width: 4px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.severity-critical { border-left-color: #ef4444; }
+.severity-high     { border-left-color: #f59e0b; }
+.severity-medium   { border-left-color: #3b82f6; }
+.severity-low      { border-left-color: #9ca3af; }
+
+.finding-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.finding-header:hover { background: #f9fafb; }
+
+.severity-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-critical { background: #ef4444; }
+.dot-high     { background: #f59e0b; }
+.dot-medium   { background: #3b82f6; }
+.dot-low      { background: #9ca3af; }
+
+.finding-description { flex: 1; font-size: 0.9rem; }
+
+.finding-meta {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.finding-agent, .finding-category {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #f0f2f5;
+  color: #57606a;
+}
+
+.expand-icon { color: #9ca3af; font-size: 0.75rem; }
+
+.finding-body { padding: 0 16px 16px 36px; border-top: 1px solid #f0f2f5; }
+.finding-section { margin-top: 12px; }
+.finding-section strong { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #57606a; display: block; margin-bottom: 4px; }
+.finding-section p, .finding-section ul { font-size: 0.875rem; }
+.finding-section ul { padding-left: 16px; }
+
+.finding-evidence {
+  background: #f6f8fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

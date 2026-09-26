@@ -1,0 +1,68 @@
+.back-btn {
+  background: none;
+  border: none;
+  color: #3b82d4;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  padding: 0;
+}
+.back-btn:hover { text-decoration: underline; }
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+.report-header h2 { font-size: 1.4rem; }
+.report-meta { color: #57606a; font-size: 0.875rem; margin-top: 4px; }
+
+.finding-counts {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.count-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: #f6f8fa;
+  border: 1px solid #e5e7eb;
+  min-width: 72px;
+}
+.count-num { font-size: 1.4rem; font-weight: 700; }
+.count-label { font-size: 0.75rem; text-transform: uppercase; color: #57606a; }
+.count-critical { border-color: #fca5a5; background: #fef2f2; }
+.count-critical .count-num { color: #cf222e; }
+.count-high { border-color: #fcd34d; background: #fffbeb; }
+.count-high .count-num { color: #b45309; }
+.count-medium { border-color: #93c5fd; background: #eff6ff; }
+.count-medium .count-num { color: #1d4ed8; }
+.count-low { border-color: #d1d5db; background: #f9fafb; }
+.count-low .count-num { color: #374151; }
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  color: #57606a;
+}
+.filter-btn {
+  padding: 4px 12px;
+  border: 1px solid #d0d7de;
+  border-radius: 20px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+.filter-btn:hover { background: #f0f2f5; }
+.filter-btn.active { background: #1f2328; color: #fff; border-color: #1f2328; }
+
+.findings-list { display: flex; flex-direction: column; gap: 8px; }

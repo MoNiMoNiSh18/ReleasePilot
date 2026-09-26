@@ -1,0 +1,41 @@
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.app-header {
+  background: #1f2328;
+  color: #fff;
+  padding: 20px 32px 0;
+}
+
+.app-title { font-size: 1.6rem; font-weight: 700; }
+.app-subtitle { color: #8b949e; font-size: 0.9rem; margin-top: 2px; }
+
+.app-nav { display: flex; gap: 4px; margin-top: 16px; }
+
+.nav-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-btn:hover { color: #fff; }
+.nav-btn.active { color: #fff; border-bottom-color: #3b82d4; }
+
+.app-main {
+  flex: 1;
+  max-width: 900px;
+  width: 100%;
+  margin: 32px auto;
+  padding: 0 24px;
+}
+
+.loading, .error, .empty {
+  text-align: center;
+  color: #57606a;
+  margin-top: 48px;
+  font-size: 1rem;
+}
+.error { color: #cf222e; }
