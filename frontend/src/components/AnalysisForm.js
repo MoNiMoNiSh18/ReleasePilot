@@ -8,7 +8,7 @@ function AnalysisForm({ onAnalysisCreated }) {
   const [branch, setBranch] = useState('main');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [created, setCreated] = useState(null); // { id, projectPath, projectName, branch }
+  const [created, setCreated] = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -116,10 +116,6 @@ function AnalysisForm({ onAnalysisCreated }) {
   );
 }
 
-/**
- * Build the Bob Agent prompt that the user pastes into a Bob session.
- * This embeds all session variables directly so Bob doesn't need CLI flags.
- */
 function buildBobPrompt({ id, projectPath, projectName, branch }) {
   return `You are the Release Orchestrator for ReleasePilot. Follow the instructions in agents/AGENTS.md exactly.
 

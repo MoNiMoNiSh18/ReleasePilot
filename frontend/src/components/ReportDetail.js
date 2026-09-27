@@ -4,7 +4,6 @@ import StatusBadge from './StatusBadge';
 import FindingCard from './FindingCard';
 import './ReportDetail.css';
 
-// Statuses that mean analysis is still in progress — keep polling
 const IN_PROGRESS_STATUSES = new Set(['pending', 'running']);
 const POLL_INTERVAL_MS = 3000;
 

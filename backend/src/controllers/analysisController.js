@@ -1,12 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const { readReport, writeReport, listReports } = require('../store/reportStore');
 
-/**
- * Create a new analysis session.
- * The Bob orchestrator is expected to:
- *   1. PATCH /api/analysis/:id/status  { "status": "running" }   — when it starts
- *   2. POST  /api/analysis/:id/results { "findings": [...] }      — when it finishes
- */
 function startAnalysis(req, res) {
   const { projectPath, projectName, branch } = req.body;
 
@@ -32,11 +26,6 @@ function startAnalysis(req, res) {
   res.status(201).json({ id, status: session.status, createdAt: session.createdAt });
 }
 
-/**
- * Update the status of an analysis session (used by Bob to mark running/failed).
- * Allowed transitions: pending → running, running → failed
- * Results endpoint handles running → READY/WARNING/BLOCKED.
- */
 function updateStatus(req, res) {
   const { id } = req.params;
   const session = readReport(id);
@@ -61,9 +50,6 @@ function updateStatus(req, res) {
   res.json({ id, status });
 }
 
-/**
- * Receive analysis results from the Bob orchestrator and compute final status.
- */
 function receiveResults(req, res) {
   const { id } = req.params;
   const session = readReport(id);
@@ -93,9 +79,6 @@ function receiveResults(req, res) {
   res.json({ id, status });
 }
 
-/**
- * Get the current status/result of an analysis session.
- */
 function getAnalysis(req, res) {
   const { id } = req.params;
   const session = readReport(id);
@@ -107,9 +90,6 @@ function getAnalysis(req, res) {
   res.json(session);
 }
 
-/**
- * List all analysis sessions (summary only).
- */
 function listAnalyses(req, res) {
   const all = listReports();
   const summaries = all.map(({ id, projectName, branch, status, createdAt, updatedAt, completedAt }) => ({
@@ -124,14 +104,6 @@ function listAnalyses(req, res) {
   res.json(summaries);
 }
 
-/**
- * Derive release status from a findings array.
- *
- * critical           → BLOCKED
- * high               → WARNING
- * medium (no higher) → READY_WITH_WARNINGS
- * low / none         → READY
- */
 function deriveReleaseStatus(findings) {
   const severities = findings.map((f) => (f.severity || '').toLowerCase());
 

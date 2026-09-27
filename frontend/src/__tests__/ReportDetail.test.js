@@ -76,7 +76,6 @@ describe('ReportDetail', () => {
 
   test('polls until status is terminal', async () => {
     jest.useFakeTimers();
-    // First call: pending, second call: READY
     client.getReport
       .mockResolvedValueOnce(pendingReport)
       .mockResolvedValueOnce(completedReport);
@@ -85,16 +84,13 @@ describe('ReportDetail', () => {
       render(<ReportDetail id="test-id" onBack={() => {}} />);
     });
 
-    // After first render: still pending → banner shown
     expect(screen.getByText(/IBM Bob is analyzing/i)).toBeInTheDocument();
 
-    // Advance past poll interval
     await act(async () => {
       jest.advanceTimersByTime(3500);
-      await Promise.resolve(); // flush microtasks
+      await Promise.resolve();
     });
 
-    // After poll: READY → findings shown
     expect(screen.getByText('No CHANGELOG found')).toBeInTheDocument();
     expect(client.getReport).toHaveBeenCalledTimes(2);
   });
