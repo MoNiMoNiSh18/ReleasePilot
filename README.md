@@ -151,7 +151,7 @@ releasepilot/
 
 ---
 
-## Quick Start
+## Quick Start (local)
 
 ### 1. Install dependencies
 
@@ -165,8 +165,83 @@ npm run install:all
 npm start
 ```
 
-- **Backend API**: http://localhost:3001  
+- **Backend API**: http://localhost:3001
 - **Frontend**: http://localhost:3000
+
+---
+
+## Deploying to the Cloud
+
+ReleasePilot uses a two-service deployment:
+
+| Service | Platform | What it runs |
+|---------|----------|-------------|
+| Backend API | **Render** (free tier) | Node.js + Express |
+| Frontend | **Vercel** (free tier) | React static build |
+
+### Step 1 — Deploy the backend to Render
+
+1. Go to [render.com](https://render.com) and sign in with GitHub.
+2. Click **New → Web Service** and connect the `ReleasePilot` repo.
+3. Render auto-detects `render.yaml` — confirm the settings match.
+4. Add the environment variable in the Render dashboard:
+   - `FRONTEND_URL` → *(leave blank for now — fill in after Vercel deploy)*
+5. Click **Deploy**. Wait for the service to show **Live**.
+6. Note your backend URL, e.g. `https://releasepilot-api.onrender.com`
+
+> **Ephemeral storage warning** — Render free tier wipes the filesystem on every deploy/restart. Reports are lost. Fine for demos; for persistence upgrade to a paid disk or swap `reportStore.js` for a database.
+
+---
+
+### Step 2 — Deploy the frontend to Vercel
+
+1. Go to [vercel.com](https://vercel.com) and sign in with GitHub.
+2. Click **Add New → Project** and import the `ReleasePilot` repo.
+3. Set **Framework Preset** to `Create React App`.
+4. Set **Root Directory** to `frontend`.
+5. Add the environment variable:
+   - `REACT_APP_API_URL` → `https://releasepilot-api.onrender.com` *(no trailing slash)*
+6. Click **Deploy**. Note your URL, e.g. `https://releasepilot.vercel.app`
+
+---
+
+### Step 3 — Wire the two services together
+
+1. Go back to **Render dashboard** → your service → **Environment**.
+2. Set `FRONTEND_URL` → `https://releasepilot.vercel.app`
+3. Render redeploys automatically. CORS is now locked to your frontend domain.
+
+---
+
+### Step 4 — Verify
+
+```bash
+curl https://releasepilot-api.onrender.com/api/health
+
+curl -X POST https://releasepilot-api.onrender.com/api/analysis \
+  -H "Content-Type: application/json" \
+  -d '{"projectPath":"/smoke","projectName":"smoke-test","branch":"main"}'
+```
+
+Open your Vercel URL — the UI should load and connect to the live API.
+
+---
+
+### Environment variable reference
+
+**Backend (Render)**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PORT` | auto | Set by Render automatically |
+| `NODE_ENV` | auto | Set to `production` by Render |
+| `FRONTEND_URL` | yes | Your Vercel URL — restricts CORS |
+
+**Frontend (Vercel)**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `REACT_APP_API_URL` | yes | Your Render backend URL (no trailing slash) |
 
 ---
 

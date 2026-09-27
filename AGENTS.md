@@ -6,6 +6,10 @@ This file provides guidance to agents when working with code in this repository.
 
 ReleasePilot is a release readiness analysis platform with a Node.js/Express backend, a React frontend, and an IBM Bob 2.0 agentic analysis layer.
 
+**Live deployment:**
+- Frontend: Vercel (`frontend/` directory, `Create React App`)
+- Backend: Render (`backend/` directory, Node.js web service, `render.yaml`)
+
 ## Commands
 
 ```bash
@@ -49,7 +53,8 @@ cd frontend && CI=true npm test -- --watchAll=false --testPathPattern StatusBadg
 
 ## Critical Architecture Facts
 
-- **Frontend proxy**: `frontend/package.json` has `"proxy": "http://localhost:3001"` — all `/api/*` calls from React go to the backend. Do not hardcode `localhost:3001` in frontend code.
+- **Frontend proxy**: `frontend/package.json` has `"proxy": "http://localhost:3001"` — all `/api/*` calls from React go to the backend **in development only**. In production Vercel uses the `REACT_APP_API_URL` env var set in `frontend/src/api/client.js`. Do not hardcode `localhost:3001` anywhere.
+- **Backend CORS**: when `FRONTEND_URL` env var is set, CORS is restricted to that origin. When unset (local dev), all origins are allowed.
 - **JSON storage**: Reports are written to `backend/data/reports/<uuid>.json` by `backend/src/store/reportStore.js`. Directory is auto-created on first write.
 - **Release status** is derived server-side in `deriveReleaseStatus()` in `analysisController.js`:
   - `critical` → `BLOCKED`

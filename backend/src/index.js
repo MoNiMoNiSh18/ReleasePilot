@@ -6,14 +6,33 @@ const reportsRouter = require('./routes/reports');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// In production FRONTEND_URL must be set to the Vercel deployment URL.
+// In development all origins are allowed (open CORS for local use).
+const corsOptions = process.env.FRONTEND_URL
+  ? {
+      origin: process.env.FRONTEND_URL,
+      methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type'],
+    }
+  : {};  // open — development only
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api/analysis', analysisRouter);
 app.use('/api/reports', reportsRouter);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'ReleasePilot API' });
+  res.json({
+    status: 'ok',
+    service: 'ReleasePilot API',
+    storage: 'json-files',
+    // On Render free tier the filesystem is ephemeral — data is lost on redeploy/restart.
+    // Upgrade to a paid instance with a persistent disk, or migrate to a DB, for production use.
+    storageNote: process.env.NODE_ENV === 'production'
+      ? 'ephemeral — reports are lost on restart'
+      : 'local',
+  });
 });
 
 app.use((req, res) => {

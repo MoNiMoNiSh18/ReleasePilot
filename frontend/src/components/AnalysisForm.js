@@ -117,6 +117,11 @@ function AnalysisForm({ onAnalysisCreated }) {
 }
 
 function buildBobPrompt({ id, projectPath, projectName, branch }) {
+  // Use the deployed backend URL if available, fall back to localhost for dev.
+  const apiBase = process.env.REACT_APP_API_URL
+    ? `${process.env.REACT_APP_API_URL}/api`
+    : 'http://localhost:3001/api';
+
   return `You are the Release Orchestrator for ReleasePilot. Follow the instructions in agents/AGENTS.md exactly.
 
 Session details:
@@ -124,9 +129,9 @@ Session details:
 - projectPath: ${projectPath}
 - projectName: ${projectName}
 - branch: ${branch}
-- apiBase: http://localhost:3001/api
+- apiBase: ${apiBase}
 
-Step 1: PATCH ${`http://localhost:3001/api/analysis/${id}/status`} with body {"status":"running"} to mark the session as started.
+Step 1: PATCH ${apiBase}/analysis/${id}/status with body {"status":"running"} to mark the session as started.
 
 Step 2: Spawn three subagents IN PARALLEL using spawn_subagent:
   (a) Code Risk Analyst    — instructions in agents/subagents/code-risk/AGENTS.md
@@ -141,7 +146,7 @@ Step 3: Collect all three findings arrays. Perform the CRITIC/REVIEW pass:
   - Verify affectedFiles paths exist in the project
 
 Step 4: POST the final reviewed findings to:
-  http://localhost:3001/api/analysis/${id}/results
+  ${apiBase}/analysis/${id}/results
   Body: {"findings": [ ...reviewed findings array... ]}
 
 Each finding must have: severity, title (or description), file (or affectedFiles), evidence, impact, recommendation.

@@ -1,4 +1,9 @@
-const API_BASE = '/api';
+// In development the Create React App proxy (package.json "proxy") forwards /api to localhost:3001.
+// In production REACT_APP_API_URL must be set to the full Render backend URL (no trailing slash).
+// e.g. REACT_APP_API_URL=https://releasepilot-api.onrender.com
+const API_BASE = process.env.REACT_APP_API_URL
+  ? `${process.env.REACT_APP_API_URL}/api`
+  : '/api';
 
 export async function startAnalysis(payload) {
   const res = await fetch(`${API_BASE}/analysis`, {

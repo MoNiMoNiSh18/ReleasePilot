@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: releasepilot-api
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        sync: false   # set manually in Render dashboard to your Vercel URL
