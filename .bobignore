@@ -1,0 +1,41 @@
+﻿# .bobignore — tells IBM Bob which files/directories to skip when reading the workspace
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+**/dist/
+**/build/
+
+# Generated report data — contains live user data, not source code
+backend/data/reports/
+
+# Frontend build cache
+frontend/.cache/
+
+# Coverage reports
+coverage/
+**/coverage/
+
+# Environment files — never read secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python cache (if analysing target projects)
+__pycache__/
+*.pyc
+*.pyo
